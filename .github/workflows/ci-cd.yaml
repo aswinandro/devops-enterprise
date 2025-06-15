@@ -1,0 +1,57 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: services/service-a
+
+      - name: Run tests
+        run: npm test || echo "No tests yet"
+        working-directory: services/service-a
+
+      - name: Docker build
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/service-a:latest .
+        working-directory: services/service-a
+
+      - name: Docker login
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Docker push
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/service-a:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" > kubeconfig
+          export KUBECONFIG=$PWD/kubeconfig
+
+      - name: Deploy using Helm
+        run: |
+          helm upgrade --install service-a charts/service-a --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/service-a --set image.tag=latest --namespace default

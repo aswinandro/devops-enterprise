@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: service-a-rollout
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: service-a
+  template:
+    metadata:
+      labels:
+        app: service-a
+    spec:
+      containers:
+      - name: service-a
+        image: your-dockerhub-username/service-a:latest
+        ports:
+        - containerPort: 8080
+  strategy:
+    blueGreen:
+      activeService: service-a-active
+      previewService: service-a-preview
+      autoPromotionEnabled: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a-active
+spec:
+  selector:
+    app: service-a
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-a-preview
+spec:
+  selector:
+    app: service-a
+  ports:
+    - port: 8081
+      targetPort: 8080
